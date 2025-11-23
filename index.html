@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>金利餘的火震生存試煉 - 鍵盤增強版</title>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #050510;
+            --neon-green: #39ff14;
+            --neon-pink: #ff00ff;
+            --neon-cyan: #00ffff;
+            --neon-yellow: #ffff00;
+            --neon-red: #ff3333;
+            --win-gray: #c0c0c0;
+            --win-blue: #000080;
+        }
+
+        * { box-sizing: border-box; touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background: var(--bg-dark);
+            margin: 0; height: 100vh; overflow: hidden;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            font-family: 'DotGothic16', monospace;
+            color: white;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 0, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* === 全局像素化與特效 === */
+        img, canvas, div {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 6px 100%;
+            pointer-events: none; z-index: 9000;
+        }
+
+        .flash-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; opacity: 0; pointer-events: none; z-index: 9100;
+        }
+
+        /* === 啟動畫面 === */
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; padding: 20px;
+        }
+        .title-glitch {
+            font-size: 4rem; color: var(--neon-green);
+            text-shadow: 4px 4px var(--neon-pink);
+            animation: glitch 1s infinite;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 600px) {
+            .title-glitch { font-size: 2.5rem; }
+            .start-btn { font-size: 1.5rem !important; padding: 15px 30px !important; }
+        }
+
+        .start-btn {
+            margin-top: 20px; padding: 20px 50px;
+            font-size: 2rem; background: transparent; color: #fff;
+            border: 4px solid var(--neon-cyan); cursor: pointer;
+            font-family: inherit; animation: pulse 1.5s infinite;
+            text-transform: uppercase;
+        }
+        .start-btn.active { background: var(--neon-cyan); color: #000; }
+
+        /* === 遊戲主容器 === */
+        #game-wrapper {
+            position: relative;
+            width: 800px; height: 600px;
+            transform-origin: center;
+            z-index: 10;
+            transition: transform 0.1s;
+        }
+        .shake-anim { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+
+        #game-container {
+            width: 100%; height: 100%;
+            background: #222;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid var(--neon-cyan);
+            box-shadow: 0 0 30px var(--neon-cyan);
+        }
+
+        /* === 背景層 === */
+        #scene-layer {
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            transition: filter 0.3s; z-index: 0;
+            background-size: cover; background-position: center;
+        }
+        .bg-intro { background: #000; }
+        .bg-street { background: #2c3e50; background-image: repeating-linear-gradient(0deg, transparent, transparent 19px, #444 20px); }
+        .bg-house { background: #5d4037; }
+        .bg-kitchen { background: #37474f; }
+        .bg-bank { background: #0d47a1; }
+        .bg-room { background: #4e342e; }
+        .bg-ruins { background: #212121; filter: grayscale(1) contrast(1.5) sepia(0.3) !important; }
+        
+        /* === 角色層 === */
+        #char-layer {
+            position: absolute; bottom: 290px; width: 100%; height: 280px;
+            pointer-events: none; z-index: 10;
+            display: flex; justify-content: space-between; padding: 0 60px;
+        }
+        .char-img {
+            height: 100%; width: auto;
+            filter: drop-shadow(4px 4px 0px rgba(0,0,0,1));
+            transition: transform 0.2s, filter 0.2s, opacity 0.2s;
+            opacity: 0;
+        }
+        .char-visible { opacity: 1; }
+        #char-kin { transform: scale(1); } 
+        #char-chill { transform: scale(1.15); }
+        .speaking { filter: brightness(1.2) drop-shadow(0 0 10px var(--neon-green)); transform: translateY(-10px) scale(1.05) !important; opacity: 1; z-index: 12; }
+        .not-speaking { filter: brightness(0.4) grayscale(0.5); opacity: 0.8; z-index: 10; }
+
+        /* === UI 層 === */
+        #ui-layer { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 20; pointer-events: none; }
+
+        #hud-box {
+            position: absolute; top: 20px; left: 20px;
+            background: #000; border: 2px solid #fff;
+            padding: 10px 20px; 
+            font-size: 1.5rem;
+            display: flex; gap: 30px; pointer-events: none;
+            box-shadow: 5px 5px 0 #555;
+        }
+
+        #dialogue-area {
+            position: absolute; bottom: 20px; left: 20px; right: 20px;
+            height: 260px; 
+            background: #000080;
+            border: 4px solid #fff;
+            padding: 25px; pointer-events: auto;
+            display: flex; flex-direction: column;
+            box-shadow: 10px 10px 0 #000; cursor: pointer;
+        }
+        #name-tag {
+            background: var(--neon-pink); color: #000;
+            padding: 5px 15px; font-weight: bold; font-size: 1.4rem;
+            align-self: flex-start; margin-bottom: 15px;
+            border: 2px solid #fff; box-shadow: 4px 4px 0 #000;
+            transform: rotate(-2deg);
+        }
+        #dialogue-text {
+            font-size: 1.6rem; line-height: 1.6; flex: 1;
+            overflow-y: auto; text-shadow: 2px 2px 0 #000;
+            white-space: pre-line; color: #fff; padding-right: 10px;
+            scroll-behavior: smooth; /* 平滑滾動 */
+        }
+
+        #next-arrow { 
+            position: absolute; bottom: 15px; right: 20px;
+            font-size: 2rem; color: var(--neon-green); 
+            animation: blink 0.8s steps(2, start) infinite; 
+            display: none; 
+        }
+
+        /* === 選項選單 === */
+        #options-box {
+            position: absolute; right: 40px; bottom: 300px;
+            display: flex; flex-direction: column; gap: 15px;
+            pointer-events: auto; align-items: flex-end; z-index: 30;
+        }
+        .option-btn {
+            background: #000; border: 3px solid var(--neon-cyan);
+            color: var(--neon-cyan); padding: 15px 25px;
+            font-family: inherit; font-size: 1.4rem; cursor: pointer;
+            min-width: 500px; text-align: left; transition: 0.1s;
+            box-shadow: 6px 6px 0 rgba(0,255,255,0.3);
+            position: relative;
+        }
+        .option-btn:hover, .option-btn.selected { 
+            background: var(--neon-cyan); color: #000; 
+            box-shadow: 0 0 15px var(--neon-cyan); 
+            transform: translateX(-15px);
+        }
+        .option-btn.selected::before {
+            content: '►'; position: absolute; left: -30px; color: var(--neon-pink);
+            animation: blink 0.5s infinite;
+        }
+
+        /* === 浮動文字特效 === */
+        .floating-text {
+            position: absolute;
+            font-weight: bold; font-size: 2rem;
+            animation: floatUp 1.5s ease-out forwards;
+            text-shadow: 2px 2px 0 #000;
+            z-index: 100; pointer-events: none;
+        }
+
+        /* === 風險四象限圖 === */
+        #risk-matrix-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 60;
+            display: none; justify-content: center; align-items: center;
+            flex-direction: column; pointer-events: auto;
+        }
+        .matrix-container {
+            display: grid; grid-template-columns: 40px 1fr 1fr; grid-template-rows: 40px 1fr 1fr;
+            gap: 5px; width: 600px; height: 450px; background: transparent;
+        }
+        .matrix-label { display: flex; justify-content: center; align-items: center; font-size: 1.2rem; color: #aaa; text-align: center; }
+        .matrix-cell {
+            border: 2px solid #fff; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 10px;
+            font-size: 1.5rem; text-align: center; transition: all 0.3s; background: #111;
+        }
+        .matrix-cell h3 { margin: 0 0 10px 0; color: var(--neon-cyan); }
+        .matrix-cell p { font-size: 1rem; color: #ccc; margin: 0; }
+        .matrix-cell.highlight-transfer { border-color: var(--neon-pink); box-shadow: inset 0 0 20px var(--neon-pink); background: #220022; }
+
+        /* === 翻牌記憶遊戲 === */
+        #memory-game-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.92); z-index: 65;
+            display: none; justify-content: center; align-items: center;
+            flex-direction: column; pointer-events: auto;
+        }
+        .memory-grid {
+            display: grid; grid-template-columns: repeat(4, 120px); gap: 15px;
+            margin-top: 20px;
+        }
+        .memory-card {
+            width: 120px; height: 160px;
+            background: #000080; border: 4px solid #fff;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 3rem; cursor: pointer; color: transparent;
+            position: relative; transition: transform 0.2s;
+        }
+        .memory-card::before { content: '?'; color: var(--neon-yellow); font-size: 3rem; position: absolute; }
+        .memory-card.flipped { background: #fff; color: #000; transform: rotateY(180deg); }
+        .memory-card.flipped::before { display: none; }
+        .memory-card.matched { background: var(--neon-green); border-color: var(--neon-green); opacity: 0.5; pointer-events: none; }
+        .memory-card:hover { transform: scale(1.05); border-color: var(--neon-cyan); }
+        .memory-text { font-size: 1.2rem; text-align: center; line-height: 1.2; padding: 5px; color: #000;}
+
+        /* === 實作地圖介面 === */
+        #map-interface {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 600px; height: 500px; background: #c0c0c0;
+            border: 4px solid #000; z-index: 50; display: none;
+            flex-direction: column; padding: 5px; color: #000; pointer-events: auto;
+            box-shadow: 20px 20px 0 rgba(0,0,0,0.8);
+        }
+        .map-header { background: #000080; color: white; padding: 8px; margin-bottom: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .map-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 1; padding: 10px; background: #444; }
+        .map-tile {
+            background: #aaa; border: 4px solid #888;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 4rem; cursor: pointer; position: relative;
+            image-rendering: pixelated; transition: transform 0.1s;
+        }
+        /* 地圖選擇狀態樣式 */
+        .map-tile:hover, .map-tile.selected { 
+            border-color: var(--neon-yellow); 
+            background: #eee; 
+            transform: scale(1.05); 
+            z-index: 2; 
+            box-shadow: 0 0 15px var(--neon-yellow);
+        }
+        .map-tile:active { transform: scale(0.95); }
+
+        /* === 機會與命運小遊戲 === */
+        #chance-game-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,50,0.95); z-index: 70;
+            display: none; flex-direction: column; pointer-events: auto;
+            justify-content: center; align-items: center;
+        }
+        .card-container { display: flex; gap: 50px; margin-top: 30px; }
+        .game-card {
+            width: 200px; height: 300px;
+            background: linear-gradient(135deg, #000080, #000);
+            border: 5px solid #fff; border-radius: 15px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 5rem; cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            position: relative;
+        }
+        .game-card::after { content: '?'; color: var(--neon-yellow); text-shadow: 3px 3px 0 #000; }
+        .game-card:hover, .game-card.selected {
+            transform: translateY(-20px) scale(1.1);
+            box-shadow: 0 0 30px var(--neon-cyan);
+            border-color: var(--neon-cyan);
+        }
+        .game-card.flipped { background: #fff; color: #000; font-size: 1.5rem; padding: 10px; text-align: center; }
+        .game-card.flipped::after { content: ''; }
+
+        /* === 學習圖卡 === */
+        #learning-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 100;
+            display: none; justify-content: center; align-items: center;
+            pointer-events: auto; backdrop-filter: grayscale(1) blur(4px);
+        }
+        .retro-window {
+            width: 700px; background: var(--win-gray);
+            border: 3px solid #fff;
+            border-right-color: #404040; border-bottom-color: #404040;
+            box-shadow: 20px 20px 0 #000; display: flex; flex-direction: column;
+            animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .win-header { background: var(--win-blue); color: #fff; padding: 8px 12px; font-weight: bold; font-size: 1.2rem; display: flex; justify-content: space-between; }
+        .win-body { padding: 25px; color: #000; font-size: 1.4rem; line-height: 1.6; max-height: 450px; overflow-y: auto; }
+        .learning-title { font-size: 1.8rem; color: #000; border-bottom: 4px double #808080; margin-bottom: 20px; padding-bottom: 10px; font-weight: 900; }
+        .win-btn { align-self: center; margin-top: 25px; padding: 10px 30px; font-family: inherit; font-size: 1.2rem; background: var(--win-gray); cursor: pointer; border: 2px solid #fff; border-right-color: #404040; border-bottom-color: #404040; box-shadow: 2px 2px 0 #000; }
+        .win-btn.active { border-style: inset; transform: translate(2px, 2px); }
+
+        /* === 吉祥物 (左下角) === */
+        #mascot-container { 
+            position: fixed; bottom: 10px; left: 10px; 
+            width: 130px; height: 130px; 
+            z-index: 10000; cursor: help; pointer-events: auto; 
+            transition: transform 0.2s;
+        }
+        #mascot-img { 
+            width: 100%; height: 100%; object-fit: contain;
+            filter: drop-shadow(2px 2px 0 #fff); 
+            transition: all 0.2s;
+        }
+        #mascot-container:hover { animation: shakeHard 0.2s infinite; }
+        #mascot-container:hover #mascot-img {
+            filter: drop-shadow(0 0 10px #ff0000) drop-shadow(0 0 20px #00ff00) drop-shadow(0 0 30px #0000ff) brightness(1.3);
+        }
+
+        /* === Footer === */
+        footer { 
+            position: fixed; bottom: 5px; width: 100%; 
+            text-align: center; color: #aaa; 
+            font-size: 1rem; font-family: sans-serif; 
+            z-index: 10001; text-shadow: 2px 2px 0 #000; pointer-events: none;
+        }
+
+        /* === 慶祝畫面 === */
+        #congrats-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.9); z-index: 150; display: none;
+            justify-content: center; align-items: center; flex-direction: column;
+        }
+        .congrats-text { font-size: 5rem; color: gold; animation: pulse 0.2s infinite; text-shadow: 5px 5px 0 #000; }
+
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes glitch { 0% { transform: translate(0); } 20% { transform: translate(-3px, 3px); } 40% { transform: translate(-3px, -3px); } 60% { transform: translate(3px, 3px); } 80% { transform: translate(3px, -3px); } 100% { transform: translate(0); } }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(4px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-8px, 0, 0); } 40%, 60% { transform: translate3d(8px, 0, 0); } }
+        @keyframes shakeHard { 0% { transform: translate(2px, 1px) rotate(0deg); } 25% { transform: translate(-2px, -2px) rotate(-5deg); } 50% { transform: translate(-3px, 0px) rotate(5deg); } 75% { transform: translate(3px, 2px) rotate(0deg); } 100% { transform: translate(1px, -1px) rotate(-5deg); } }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-50px); opacity: 0; } }
+        @keyframes flashRed { 0% { background: red; opacity: 0.3; } 100% { background: white; opacity: 0; } }
+
+        #controls-hint { position: absolute; top: 10px; right: 10px; color: var(--neon-cyan); font-size: 1rem; text-align: right; line-height: 1.5; text-shadow: 1px 1px 0 #000;}
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+    <div class="flash-overlay" id="flash-fx"></div>
+
+    <div id="start-screen">
+        <div class="title-glitch">金利餘生存試煉</div>
+        <p style="font-size: 1.5rem; margin-top: 20px; color: #aaa; font-family: sans-serif;">- RISK SURVIVAL -</p>
+        <button class="start-btn" id="start-btn-element" onclick="startGame()">> START GAME <</button>
+    </div>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div id="scene-layer" class="bg-intro"></div>
+            <div id="char-layer">
+                <img id="char-kin" class="char-img" src="image/kinliyu.png" alt="金利餘" onerror="this.style.display='none'"> 
+                <img id="char-chill" class="char-img" src="image/chiuliyu.png" alt="秋鯉魚" onerror="this.style.display='none'">
+            </div>
+            
+            <!-- 風險四象限圖 -->
+            <div id="risk-matrix-overlay">
+                <h1 style="color:var(--neon-yellow); text-shadow: 3px 3px 0 #000; margin-bottom: 20px;">⚠️ 風險管理分析系統 ⚠️</h1>
+                <div class="matrix-container">
+                    <div class="matrix-label"></div>
+                    <div class="matrix-label">損失幅度<br>(小)</div>
+                    <div class="matrix-label">損失幅度<br>(大)</div>
+                    <div class="matrix-label">發生機率<br>(高)</div>
+                    <div class="matrix-cell"><h3>🛡️ 風險降低</h3><p>改善現況<br>減少發生</p></div>
+                    <div class="matrix-cell" style="border-color:red; color:red;"><h3 style="color:red">☠️ 風險規避</h3><p>太危險了<br>直接逃跑</p></div>
+                    <div class="matrix-label">發生機率<br>(低)</div>
+                    <div class="matrix-cell"><h3>💰 風險自留</h3><p>小錢自己出<br>影響不大</p></div>
+                    <div class="matrix-cell highlight-transfer"><h3>⚖️ 風險移轉</h3><p>買保險<br>找人扛</p></div>
+                </div>
+                <div style="margin-top: 20px; text-align: center;">
+                    <p style="color: #fff; margin-bottom: 15px;">面對「地震」這種 <span style="color:var(--neon-pink)">低機率、高損失</span> 的風險...</p>
+                    <button class="win-btn" onclick="closeRiskMatrix()">了解，採取行動</button>
+                </div>
+            </div>
+
+            <!-- 實作地圖 UI -->
+            <div id="map-interface">
+                <div class="map-header">
+                    <span>防災地圖 App</span>
+                    <span style="color:yellow">請使用方向鍵選擇正確地點</span>
+                </div>
+                <div class="map-grid" id="map-grid"></div>
+            </div>
+
+            <!-- 機會命運遊戲 -->
+            <div id="chance-game-overlay">
+                <h1 style="color:var(--neon-cyan); font-size: 3rem; text-shadow: 4px 4px 0 #000;">🃏 機會？命運？ 🃏</h1>
+                <p style="font-size: 1.5rem; margin-bottom: 20px;">人生充滿意外，請選擇一張卡牌...</p>
+                <div class="card-container">
+                    <div class="game-card" id="card-0" onclick="selectCard(0)"></div>
+                    <div class="game-card" id="card-1" onclick="selectCard(1)"></div>
+                </div>
+            </div>
+
+            <!-- 風險配對記憶遊戲 -->
+            <div id="memory-game-overlay">
+                <h1 style="color:var(--neon-green); text-shadow: 3px 3px 0 #000;">🧠 風險記憶特訓 🧠</h1>
+                <p style="color: #ccc;">找出配對的風險策略 (翻兩張)</p>
+                <div class="memory-grid" id="memory-grid">
+                    <!-- JS 生成 -->
+                </div>
+            </div>
+
+            <!-- 知識圖卡 -->
+            <div id="learning-overlay">
+                <div class="retro-window">
+                    <div class="win-header">
+                        <span>知識補給站.EXE</span>
+                        <span onclick="closeLearning()" style="cursor:pointer">[X]</span>
+                    </div>
+                    <div class="win-body">
+                        <div class="learning-title" id="learn-title">標題</div>
+                        <div id="learn-content">內容...</div>
+                        <div style="text-align: center;">
+                            <button class="win-btn" id="learning-btn" onclick="closeLearning()">我學會了</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 慶祝畫面 -->
+            <div id="congrats-overlay">
+                <div class="congrats-text">🎉任務達成🎉</div>
+                <div style="font-size: 2rem; margin-top: 20px; color: #fff;">您已掌握地震保險知識！</div>
+            </div>
+
+            <!-- 遊戲 UI -->
+            <div id="ui-layer">
+                <div id="controls-hint">
+                    [操作說明]<br>
+                    使用滑鼠/觸控點擊<br>
+                    對話: Enter/空白鍵<br>
+                    對話捲動: ↑/↓<br>
+                    地圖: ↑/↓/←/→/Enter
+                </div>
+                <div id="hud-box" style="display:none;">
+                    <span style="color:var(--neon-green)">資產: $ <span id="money">500,000</span></span>
+                    <span style="color:var(--neon-pink)">HP: <span id="hp">100%</span></span>
+                </div>
+                <div id="options-box"></div>
+                <div id="dialogue-area" onclick="handleInteraction()" style="display:none;">
+                    <div id="name-tag">System</div>
+                    <div id="dialogue-text">系統啟動中...</div>
+                    <div id="next-arrow">▼</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mascot-container">
+        <img id="mascot-img" src="image/LiyuChillGuy.svg" alt="秋蓋保寶">
+    </div>
+
+    <footer>
+        Copyright © Liyuchiutiger Gongminshen
+    </footer>
+
+    <script>
+        /* === 0. 音效與特效系統 === */
+        const AudioSys = {
+            ctx: null,
+            init: function() {
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            },
+            playTone: function(freq, type, duration, vol=0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.00001, this.ctx.currentTime + duration);
+                osc.stop(this.ctx.currentTime + duration);
+            },
+            playSFX: function(name) {
+                if (!this.ctx) return;
+                switch(name) {
+                    case 'type': this.playTone(600, 'square', 0.05, 0.02); break;
+                    case 'move': this.playTone(300, 'square', 0.05, 0.05); break;
+                    case 'select': this.playTone(550, 'square', 0.1, 0.1); break;
+                    case 'correct': 
+                        this.playTone(880, 'square', 0.1, 0.1); 
+                        setTimeout(()=>this.playTone(1100, 'square', 0.2, 0.1), 100); 
+                        break;
+                    case 'wrong': 
+                        this.playTone(150, 'sawtooth', 0.3, 0.2); 
+                        setTimeout(()=>this.playTone(100, 'sawtooth', 0.3, 0.2), 150); 
+                        break;
+                    case 'win':
+                        [523, 659, 783, 1046, 1318, 1568].forEach((f, i) => setTimeout(() => this.playTone(f, 'square', 0.2, 0.1), i * 120));
+                        break;
+                    case 'damage':
+                        this.playTone(100, 'sawtooth', 0.3, 0.3);
+                        this.playTone(80, 'square', 0.4, 0.3);
+                        break;
+                    case 'cash':
+                        this.playTone(1200, 'sine', 0.1, 0.1);
+                        setTimeout(()=>this.playTone(1800, 'square', 0.2, 0.1), 50);
+                        break;
+                    case 'card_flip':
+                         this.playTone(400, 'triangle', 0.1, 0.1);
+                         break;
+                }
+            }
+        };
+
+        const FX = {
+            shake: function() {
+                const wrapper = document.getElementById('game-wrapper');
+                wrapper.classList.remove('shake-anim');
+                void wrapper.offsetWidth; 
+                wrapper.classList.add('shake-anim');
+                
+                const flash = document.getElementById('flash-fx');
+                flash.style.animation = 'flashRed 0.3s';
+                setTimeout(() => flash.style.animation = '', 300);
+                
+                AudioSys.playSFX('damage');
+            },
+            floatingText: function(text, color) {
+                const el = document.createElement('div');
+                el.className = 'floating-text';
+                el.innerText = text;
+                el.style.color = color;
+                el.style.left = (400 + Math.random()*100 - 50) + 'px';
+                el.style.top = (300 + Math.random()*100 - 50) + 'px';
+                document.getElementById('game-wrapper').appendChild(el);
+                setTimeout(() => el.remove(), 1500);
+                if(color === 'lime' || color === 'gold') AudioSys.playSFX('cash');
+            }
+        };
+
+        /* === 1. 響應式縮放 === */
+        function resizeGame() {
+            const wrapper = document.getElementById('game-wrapper');
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const scale = Math.min(winW / 800, (winH - 30) / 600);
+            wrapper.style.transform = `scale(${scale * 0.95})`;
+        }
+        window.addEventListener('resize', resizeGame);
+        
+        /* === 2. 遊戲核心狀態 === */
+        const Game = {
+            state: 'start', 
+            money: 500000, 
+            hp: 100, 
+            currentScene: 'chance_1_start',
+            isTyping: false,
+            fullText: '', 
+            typingTimer: null, 
+            
+            currentOptions: [], 
+            selectedOptionIndex: 0, 
+            cardCursorIndex: 0,
+            mapCursorIndex: 0, // 地圖游標索引
+            returnScene: '', 
+            insuranceType: 'none',
+
+            // 記憶遊戲狀態
+            memoryCards: [],
+            flippedCards: [],
+            matchedCount: 0
+        };
+
+        function startGame() {
+            AudioSys.init();
+            AudioSys.playSFX('select');
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('hud-box').style.display = 'flex';
+            document.getElementById('dialogue-area').style.display = 'flex';
+            
+            triggerChanceGame('intro_1');
+        }
+
+        function updateUI() {
+            document.getElementById('money').innerText = Game.money.toLocaleString();
+            const hpEl = document.getElementById('hp');
+            hpEl.innerText = Game.hp + "%";
+            hpEl.style.color = Game.hp > 50 ? 'lime' : 'red';
+        }
+
+        /* === 3. 控制器 (新增滾動與地圖導航) === */
+        document.addEventListener('keydown', (e) => {
+            // 機會命運卡牌模式
+            if (Game.state === 'card') {
+                e.preventDefault();
+                if (e.key === 'ArrowLeft') {
+                    Game.cardCursorIndex = 0; updateCardCursor(); AudioSys.playSFX('move');
+                } else if (e.key === 'ArrowRight') {
+                    Game.cardCursorIndex = 1; updateCardCursor(); AudioSys.playSFX('move');
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    selectCard(Game.cardCursorIndex);
+                }
+                return;
+            }
+
+            // 防災地圖模式
+            if (Game.state === 'map') {
+                e.preventDefault(); // 防止網頁滾動
+                const gridWidth = 3;
+                const totalTiles = 9;
+                let moved = false;
+
+                if (e.key === 'ArrowUp') {
+                    if (Game.mapCursorIndex >= gridWidth) { Game.mapCursorIndex -= gridWidth; moved = true; }
+                } else if (e.key === 'ArrowDown') {
+                    if (Game.mapCursorIndex < totalTiles - gridWidth) { Game.mapCursorIndex += gridWidth; moved = true; }
+                } else if (e.key === 'ArrowLeft') {
+                    if (Game.mapCursorIndex % gridWidth !== 0) { Game.mapCursorIndex--; moved = true; }
+                } else if (e.key === 'ArrowRight') {
+                    if ((Game.mapCursorIndex + 1) % gridWidth !== 0) { Game.mapCursorIndex++; moved = true; }
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    // 觸發選取
+                    const tiles = document.querySelectorAll('.map-tile');
+                    if(tiles[Game.mapCursorIndex]) checkMapSelection(tiles[Game.mapCursorIndex].dataset.type);
+                }
+
+                if (moved) {
+                    AudioSys.playSFX('move');
+                    updateMapCursor();
+                }
+                return;
+            }
+
+            // 一般對話打字時
+            if (Game.isTyping && (e.key === 'Enter' || e.key === ' ')) {
+                finishTyping();
+                return;
+            }
+
+            switch (Game.state) {
+                case 'start':
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        document.getElementById('start-btn-element').click();
+                    }
+                    break;
+
+                case 'dialogue':
+                    // 對話框滾動功能
+                    if (e.key === 'ArrowUp') {
+                        const txt = document.getElementById('dialogue-text');
+                        txt.scrollTop -= 40;
+                        e.preventDefault();
+                    } else if (e.key === 'ArrowDown') {
+                        const txt = document.getElementById('dialogue-text');
+                        txt.scrollTop += 40;
+                        e.preventDefault();
+                    } else if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight') {
+                        handleInteraction();
+                    }
+                    break;
+
+                case 'options':
+                    if (e.key === 'ArrowUp') {
+                        Game.selectedOptionIndex = Math.max(0, Game.selectedOptionIndex - 1);
+                        updateOptionVisuals();
+                        AudioSys.playSFX('move');
+                    } else if (e.key === 'ArrowDown') {
+                        Game.selectedOptionIndex = Math.min(Game.currentOptions.length - 1, Game.selectedOptionIndex + 1);
+                        updateOptionVisuals();
+                        AudioSys.playSFX('move');
+                    } else if (e.key === 'Enter' || e.key === ' ') {
+                        selectOption(Game.selectedOptionIndex);
+                    }
+                    break;
+
+                case 'learning':
+                    if (e.key === 'Enter' || e.key === 'Escape' || e.key === ' ') {
+                        closeLearning();
+                    }
+                    break;
+                
+                case 'matrix':
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        closeRiskMatrix();
+                    }
+                    break;
+            }
+        });
+
+        /* === 4. 劇本資料庫 === */
+        const Scripts = {
+            chance_1_start: {},
+
+            intro_1: {
+                bg: 'bg-intro', npc: '系統通知',
+                text: '【新郵件通知】\n寄件者：神神噠律師事務所\n主旨：遺產繼承通知\n\n金利餘您好，令祖父留下一棟位於斷層帶的 40 年透天厝...',
+                next: 'intro_2'
+            },
+            intro_2: {
+                bg: 'bg-intro', npc: '金利餘',
+                text: '(回憶湧現) 爺爺的老房子...\n記得小時候那裡發生過地震，牆壁都裂了。\n現在真的要我去住那裡嗎？',
+                next: 'start'
+            },
+            start: {
+                bg: 'bg-street', npc: '金利餘',
+                text: '雖然破舊了點，但終於可以不用再租房還是很讚！\n(看著牆壁的裂縫)\n欸...不過這裂縫是不是有點大？',
+                next: 'c1_meet'
+            },
+            c1_meet: {
+                bg: 'bg-street', npc: '秋鯉魚',
+                text: 'YO！YO！YO！金利餘，先別急著開心。\n我是你的風險顧問「秋鯉魚」。\n這房子屋齡高、位於斷層帶，是典型的「風險炸彈」。',
+                next: 'c2_risk_pre'
+            },
+            c2_risk_pre: {
+                bg: 'bg-kitchen', npc: '秋鯉魚',
+                text: '在做決定前，讓我先啟動「風險管理分析系統」。\n這對你的生存至關重要。',
+                next: 'c2_risk_then'
+            },
+            c2_risk_then: {
+                bg: 'bg-kitchen', npc: '秋鯉魚',
+                text: '請看仔細！',
+                action: () => showRiskMatrix(), 
+                next: null
+            },
+            c2_risk: {
+                bg: 'bg-kitchen', npc: '秋鯉魚',
+                text: '分析完畢。現在看第一關：廚房。\n電線老化嚴重，隨時會走火 (發生頻率高)。\n根據剛剛的圖表，你怎麼選？',
+                options: [
+                    { t: '太危險，賣房搬家 (風險規避)', n: 'c2_avoid' },
+                    { t: '花 8 萬重拉線路 (風險降低)', n: 'c2_reduce', correct: true },
+                    { t: '買滅火器放旁邊 (風險自留)', n: 'c2_retain' }
+                ]
+            },
+            c2_avoid: { 
+                bg: 'bg-kitchen', npc: '金利餘', text: '太可怕了，我不住了！...但劇情需要，我還是得住。', 
+                learn: { title: '風險規避 (Avoid)', content: '完全避開產生風險的活動。\n例如：拒絕前往高風險地區。但現實中很難完全規避天災。' },
+                next: 'chance_2_trigger' 
+            },
+            c2_reduce: { 
+                bg: 'bg-kitchen', npc: '秋鯉魚', text: 'Nice! 花錢消災，這叫「風險降低」。', action: () => {Game.money-=80000; FX.floatingText('-$80,000', 'red');}, 
+                learn: { title: '風險降低 (Reduce)', content: '採取預防措施(如更換老舊線路、安裝住警器)降低事故發生機率。' },
+                next: 'chance_2_trigger' 
+            },
+            c2_retain: { 
+                bg: 'bg-kitchen', npc: '秋鯉魚', text: '火災這種大風險用自留？你心臟真大顆。', action: () => {Game.hp-=10; FX.shake(); FX.floatingText('-10 HP', 'red');}, 
+                learn: { title: '風險自留 (Retain)', content: '自己承擔損失。\n通常只適用於「損失頻率低、幅度小」的風險，或準備了緊急預備金。' },
+                next: 'chance_2_trigger' 
+            },
+
+            // === 隨機事件 2 ===
+            chance_2_trigger: {
+                bg: 'bg-kitchen', npc: '命運',
+                text: '整修完廚房後，命運又來敲門了...',
+                action: () => triggerChanceGame('c2_done'),
+                next: null
+            },
+            c2_done: {
+                bg: 'bg-street', npc: '秋鯉魚',
+                text: '搞定電線，還有地震。這屬於「發生率低、損失大」的風險。\n根據四象限圖，這需要「風險移轉」。\n我們去銀行。',
+                next: 'c3_memory_intro'
+            },
+
+            // === 記憶遊戲 ===
+            c3_memory_intro: {
+                bg: 'bg-bank', npc: '秋鯉魚',
+                text: '在進入銀行談保險前，我要測試一下你的風險觀念是否清晰。\n完成這個特訓才能繼續！',
+                action: () => startMemoryGame(),
+                next: null
+            },
+            c3_memory_done: {
+                bg: 'bg-bank', npc: '秋鯉魚',
+                text: '很好！腦袋很清楚嘛。我們進去吧。',
+                next: 'c3_bank'
+            },
+
+            c3_bank: {
+                bg: 'bg-bank', npc: '行員',
+                text: '金利餘您好，辦理繼承房貸，銀行會要求投保「住宅火災及地震基本保險」。\n這是一年期的保單。',
+                options: [
+                    { t: '我不要保，省錢讚讚 (拒絕)', n: 'c3_refuse' },
+                    { t: '保險多一份安心，投保吧 (同意)', n: 'c3_agree', correct: true }
+                ]
+            },
+            c3_refuse: { 
+                bg: 'bg-bank', npc: '秋鯉魚', text: '不行！因為房子還在貸款，銀行為保障債權，會要求你強制投保。\n不保的話銀行也會代為投保並扣款喔。', 
+                learn: { title: '住宅火災及地震基本保險', content: '● 性質：政策性保險。\n● 目的：減輕地震災損負擔。\n● 銀行貸款時通常為必要條件。' },
+                next: 'c3_myth' 
+            },
+            c3_agree: { 
+                bg: 'bg-bank', npc: '金利餘', text: '好吧，為了房子...', 
+                learn: { title: '住宅火災及地震基本保險', content: '● 全台單一費率，每年約 1,350 元。\n● 包含火災險與地震基本險。' },
+                next: 'c3_myth' 
+            },
+            c3_myth: {
+                bg: 'bg-bank', npc: '金利餘', text: '這房子這麼舊，保險會賠嗎？還是隨便賠一點？', next: 'c3_myth_ans'
+            },
+            c3_myth_ans: {
+                bg: 'bg-bank', npc: '秋鯉魚', text: '放心！理賠是依「重置成本」計算，不扣折舊！\n也就是把你房子蓋回來的錢，不是看市價喔。',
+                learn: { title: '重置成本 (Replacement Cost)', content: '指重新建造或修復所需的成本。\n地震險理賠不扣除折舊，對老屋更有保障。\n注意：不包含土地價值。' },
+                next: 'c4_upgrade_intro'
+            },
+            c4_upgrade_intro: {
+                bg: 'bg-bank', npc: '秋鯉魚',
+                text: '但注意，基本險最高只賠 150 萬，且要「全倒/半倒」才賠。\n如果只裂開或是家電摔壞，基本險是不賠的。\n所以有其他進階保險可選：',
+                learn: { 
+                    title: '四種地震保險比較', 
+                    content: '1. 地震基本險：最高 150 萬 (全倒/半倒)。\n2. 超額地震險：提高理賠額度 (仍需全倒)。\n3. 輕損地震險：賠償部分損壞 (如牆壁龜裂、裝潢)。\n4. 擴大地震險：最全面！含動產、裝潢、輕損，且不需全倒。' 
+                },
+                next: 'c4_choose'
+            },
+            c4_choose: {
+                bg: 'bg-bank', npc: '秋鯉魚', 
+                text: '你要怎麼選擇？',
+                options: [
+                    { t: '基本險就好 (省錢)', n: 'c4_basic', action: () => {Game.money-=1350; Game.insuranceType='basic'; FX.floatingText('-$1,350', 'red');} },
+                    { t: '加保「輕損地震險」(怕牆壁裂)', n: 'c4_light', action: () => {Game.money-=3000; Game.insuranceType='light'; FX.floatingText('-$3,000', 'red');} },
+                    { t: '加保「擴大地震險」(全包了)', n: 'c4_expand', correct: true, action: () => {Game.money-=6350; Game.insuranceType='expanded'; FX.floatingText('-$6,350', 'red');} }
+                ]
+            },
+            c4_basic: {
+                bg: 'bg-bank', npc: '系統', text: '選擇基本險。若未達全倒標準，無法理賠。',
+                next: 'chance_3_trigger'
+            },
+            c4_light: {
+                bg: 'bg-bank', npc: '系統', text: '選擇輕損險。牆壁龜裂也能賠，不錯的選擇。',
+                next: 'chance_3_trigger'
+            },
+            c4_expand: {
+                bg: 'bg-bank', npc: '系統', text: '選擇擴大險。防護罩全開！龜裂、裝潢、動產都賠。',
+                next: 'chance_3_trigger'
+            },
+            
+            // === 隨機事件 3 ===
+            chance_3_trigger: {
+                bg: 'bg-bank', npc: '命運', text: '走出銀行，心情忐忑...',
+                action: () => triggerChanceGame('c5_bag'),
+                next: null
+            },
+
+            c5_bag: {
+                bg: 'bg-room', npc: '秋鯉魚', text: '回家準備「緊急避難包」。\n請選出一個「不需要」放在包包裡的東西：',
+                options: [
+                    { t: '水與乾糧 (3日份)', n: 'c5_wrong' },
+                    { t: 'PS5 遊戲機', n: 'c5_right', correct: true },
+                    { t: '身分證件與現金', n: 'c5_wrong' }
+                ]
+            },
+            c5_wrong: { bg: 'bg-room', npc: '秋鯉魚', text: '這是必備品！再選一次。', next: 'c5_bag' },
+            c5_right: { 
+                bg: 'bg-room', npc: '金利餘', text: '太重了，逃命要緊，PS5 先不要。', 
+                learn: { title: '緊急避難包', content: '應放置於門口或玄關隨手可拿處。\n內容：水/食物(3天)、急救包、保暖衣物、手電筒、電池、哨子、證件影本、少許現金。' },
+                next: 'c6_map_start' 
+            },
+            c6_map_start: {
+                bg: 'bg-room', npc: '秋鯉魚',
+                text: '現在來模擬演練。\n如果發生大地震，我們要去哪裡避難？\n請在接下來的地圖中，使用方向鍵選出正確的「避難收容處所」。',
+                action: () => startMapGame(), 
+                next: null 
+            },
+            c6_map_done: {
+                bg: 'bg-street', npc: '秋鯉魚',
+                text: '做得好！公園、學校、活動中心通常是避難收容處所。\n便利商店雖然方便，但空間小且玻璃多，不適合作為避難點。',
+                next: 'chance_4_trigger'
+            },
+            
+            // === 隨機事件 4 ===
+            chance_4_trigger: {
+                bg: 'bg-street', npc: '命運',
+                text: '在最終地震來臨前，生活總是充滿變數...\n(第4次挑戰)',
+                action: () => triggerChanceGame('c7_quake'),
+                next: null
+            },
+
+            c7_quake: {
+                bg: 'bg-house', npc: '警報',
+                text: '⚠️ 強烈地震來襲！⚠️\n房子劇烈搖晃！快反應！',
+                options: [
+                    { t: '衝去開門逃跑', n: 'c7_bad' },
+                    { t: '趴下、掩護、穩住', n: 'c7_good', correct: true }
+                ]
+            },
+            c7_bad: { 
+                bg: 'bg-house', npc: '秋鯉魚', text: '危險！移動容易被掉落物砸傷！(HP-30)', action: () => {Game.hp-=30; FX.shake(); FX.floatingText('-30 HP', 'red');}, 
+                learn: { title: '抗震保命三步驟', content: '1. 趴下 (Drop)\n2. 掩護 (Cover)\n3. 穩住 (Hold on)\n保護頭頸部是最高原則。' },
+                next: 'chance_5_trigger' 
+            },
+            c7_good: { 
+                bg: 'bg-house', npc: '系統', text: '完美防禦！躲在桌下保護了頭頸部！', 
+                learn: { title: '抗震保命三步驟', content: '1. 趴下 (Drop)\n2. 掩護 (Cover)\n3. 穩住 (Hold on)\n地震時勿慌張往外衝。' },
+                next: 'chance_5_trigger' 
+            },
+
+            // === 隨機事件 5 ===
+            chance_5_trigger: {
+                bg: 'bg-ruins', npc: '命運',
+                text: '主震結束了，但在餘震中...',
+                action: () => triggerChanceGame('c8_ruin'),
+                next: null
+            },
+
+            c8_ruin: {
+                bg: 'bg-ruins', npc: '金利餘',
+                text: '地震停了... 餘震不斷。\n房子歪了一邊，被貼上了「紅色危險標誌」。\n鄰居跑來說我家失火燒到他家，要我賠錢！',
+                next: 'c9_liability'
+            },
+            c9_liability: {
+                bg: 'bg-ruins', npc: '秋鯉魚',
+                text: '別怕。住宅火災保險包含「第三人責任險」。\n保險公司會幫你賠鄰居！',
+                learn: { title: '住宅第三人責任基本保險', content: '投保住宅火險自動享有。\n保障因火災延燒導致第三人(鄰居)受傷或財損。\n體傷/死亡/財損皆有理賠上限。' },
+                next: 'c10_claim'
+            },
+            c10_claim: {
+                bg: 'bg-ruins', npc: '系統',
+                text: '開始理賠結算...\n1. 建物損失 (依保單類型)\n2. 臨時住宿費用',
+                next: 'c11_priority'
+            },
+            c11_priority: {
+                bg: 'bg-bank', npc: '秋鯉魚',
+                text: '注意：如果你有房貸，地震基本險理賠金 (150萬內) 會優先償還給銀行。\n剩下的錢才會給你。',
+                learn: { title: '理賠優先順位', content: '若房屋有設定抵押權(房貸)，地震基本險理賠金會優先償還銀行欠款。\n(通常為 60% 或視貸款餘額而定)。' },
+                next: 'c12_new_rule'
+            },
+            c12_new_rule: {
+                bg: 'bg-bank', npc: '系統快訊',
+                text: '【2025年 新制通知】\n你的房子被貼「紅單」但未全倒。\n根據 114年7月15日 新規定，符合「紅單」危險建築，可領取臨時住宿費！',
+                action: () => { Game.money += 100000; FX.floatingText('+$100,000', 'gold'); },
+                learn: { 
+                    title: '114年新制：擴大臨時住宿費', 
+                    content: '自 114/7/15 起：\n若房屋經緊急評估張貼「紅色危險標誌」(即使未達全倒)，\n保險公司支付臨時住宿費 10 萬元 (最高 20 萬)。' 
+                },
+                next: 'c13_final_calc'
+            },
+            c13_final_calc: {
+                bg: 'bg-street', npc: '系統',
+                text: '正在計算最終結果...\n(包含資產、理賠金、房貸償還)',
+                next: () => {
+                    if (Game.insuranceType === 'expanded') return 'end_rich';
+                    if (Game.insuranceType === 'light') return 'end_okay';
+                    return 'end_poor';
+                }
+            },
+            end_rich: {
+                bg: 'bg-street', npc: '金利餘',
+                text: '太神啦！因為保了「擴大地震險」！\n除了還清房貸，裝潢和家電的損失都賠了！\n加上紅單住宿費，重建之路沒問題！',
+                action: () => triggerCongrats(),
+                stop: true
+            },
+            end_okay: {
+                bg: 'bg-street', npc: '金利餘',
+                text: '還好有「輕損地震險」，牆壁裂痕有賠一些錢。\n加上紅單的 10 萬住宿費，勉強撐得過去。\n至少比只保基本險好多了。',
+                action: () => triggerCongrats(),
+                stop: true
+            },
+            end_poor: {
+                bg: 'bg-street', npc: '金利餘',
+                text: '慘了... 只有「基本險」。\n150 萬大部分還給銀行了，家電裝潢都不賠。\n還好有新制的 10 萬住宿費，不然真的要睡路邊了...',
+                action: () => triggerCongrats(),
+                stop: true
+            }
+        };
+
+        /* === 5. 核心邏輯 === */
+        function renderScene() {
+            updateUI();
+            let sceneKey = Game.currentScene;
+            if (typeof sceneKey === 'function') sceneKey = sceneKey();
+            const data = Scripts[sceneKey];
+            
+            // 執行動作 (例如開啟小遊戲)
+            if (data.action) data.action();
+
+            if (data.bg) document.getElementById('scene-layer').className = data.bg;
+
+            const kin = document.getElementById('char-kin');
+            const chill = document.getElementById('char-chill');
+            kin.className = `char-img char-visible ${data.npc==='金利餘'?'speaking':'not-speaking'}`;
+            chill.className = `char-img char-visible ${data.npc==='秋鯉魚'?'speaking':'not-speaking'}`;
+            if(data.npc !== '金利餘' && data.npc !== '秋鯉魚') {
+                kin.className = 'char-img char-visible not-speaking';
+                chill.className = 'char-img char-visible not-speaking';
+            }
+
+            document.getElementById('name-tag').innerText = data.npc;
+            document.getElementById('dialogue-text').innerText = '';
+            document.getElementById('next-arrow').style.display = 'none';
+            document.getElementById('options-box').innerHTML = ''; 
+            
+            if (data.stop) {
+                document.getElementById('dialogue-text').innerText = data.text;
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = '重新開始';
+                btn.onclick = () => location.reload();
+                document.getElementById('options-box').appendChild(btn);
+                Game.state = 'end';
+                return;
+            }
+
+            if (Game.state === 'card' || Game.state === 'map' || Game.state === 'matrix' || Game.state === 'memory') {
+                document.getElementById('dialogue-text').innerText = data.text || '';
+                Game.isTyping = false;
+                return; 
+            }
+
+            Game.fullText = data.text;
+            Game.isTyping = true;
+            Game.state = 'dialogue'; 
+            
+            let charIndex = 0;
+            function type() {
+                if (!Game.isTyping) return;
+                if (charIndex < Game.fullText.length) {
+                    const textElem = document.getElementById('dialogue-text');
+                    textElem.innerText += Game.fullText.charAt(charIndex);
+                    textElem.scrollTop = textElem.scrollHeight;
+                    if(charIndex % 3 === 0) AudioSys.playSFX('type');
+                    charIndex++;
+                    Game.typingTimer = setTimeout(type, 30);
+                } else {
+                    finishTyping();
+                }
+            }
+            type();
+        }
+
+        function finishTyping() {
+            clearTimeout(Game.typingTimer);
+            Game.isTyping = false;
+            document.getElementById('dialogue-text').innerText = Game.fullText;
+            
+            const data = Scripts[Game.currentScene];
+            
+            if (data.learn && !data.learnShown) {
+                data.learnShown = true;
+                showLearningCard(data.learn);
+                return;
+            }
+
+            if (data.options) {
+                showOptions(data.options);
+            } else if (data.next) {
+                if(data.next !== null) {
+                    document.getElementById('next-arrow').style.display = 'block';
+                    Game.state = 'dialogue';
+                }
+            }
+        }
+
+        function handleInteraction() {
+            if (Game.state === 'learning' || Game.state === 'map' || Game.state === 'matrix' || Game.state === 'card' || Game.state === 'memory') return;
+
+            if (Game.isTyping) { finishTyping(); return; }
+            if (Game.state === 'options') return;
+
+            const data = Scripts[Game.currentScene];
+            if(data.learnShown) delete data.learnShown;
+            
+            if(data.next) {
+                AudioSys.playSFX('select');
+                if (typeof data.next === 'function') {
+                    Game.currentScene = data.next();
+                } else {
+                    Game.currentScene = data.next;
+                }
+                renderScene();
+            }
+        }
+
+        function showOptions(opts) {
+            Game.state = 'options';
+            Game.currentOptions = opts;
+            Game.selectedOptionIndex = 0; 
+            const box = document.getElementById('options-box');
+            box.innerHTML = '';
+            opts.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt.t;
+                btn.id = `opt-${index}`;
+                btn.onclick = (e) => { e.stopPropagation(); selectOption(index); };
+                btn.onmouseenter = () => { Game.selectedOptionIndex = index; updateOptionVisuals(); }
+                box.appendChild(btn);
+            });
+            updateOptionVisuals();
+        }
+
+        function updateOptionVisuals() {
+            const opts = document.querySelectorAll('.option-btn');
+            opts.forEach((btn, idx) => {
+                if (idx === Game.selectedOptionIndex) btn.classList.add('selected');
+                else btn.classList.remove('selected');
+            });
+        }
+
+        function selectOption(index) {
+            const opt = Game.currentOptions[index];
+            if (!opt) return;
+            if (opt.action) opt.action();
+            if (opt.correct) AudioSys.playSFX('correct');
+            else if (opt.correct === false) AudioSys.playSFX('wrong');
+            else AudioSys.playSFX('select');
+            Game.state = 'dialogue';
+            document.getElementById('options-box').innerHTML = '';
+            Game.currentScene = opt.n;
+            renderScene();
+        }
+
+        /* === 四象限圖控制 === */
+        function showRiskMatrix() {
+            Game.state = 'matrix';
+            document.getElementById('risk-matrix-overlay').style.display = 'flex';
+        }
+        function closeRiskMatrix() {
+            AudioSys.playSFX('select');
+            document.getElementById('risk-matrix-overlay').style.display = 'none';
+            Game.state = 'dialogue'; 
+            Game.currentScene = 'c2_risk';
+            renderScene();
+        }
+
+        /* === 學習圖卡 === */
+        function showLearningCard(learnData) {
+            Game.state = 'learning';
+            document.getElementById('learn-title').innerText = learnData.title;
+            document.getElementById('learn-content').innerText = learnData.content;
+            document.getElementById('learning-overlay').style.display = 'flex';
+        }
+        function closeLearning() {
+            document.getElementById('learning-overlay').style.display = 'none';
+            AudioSys.playSFX('select');
+            finishTyping();
+        }
+
+        /* === 實作地圖小遊戲 === */
+        function startMapGame() {
+            Game.state = 'map';
+            Game.mapCursorIndex = 4; // 預設在中間
+            const grid = document.getElementById('map-grid');
+            grid.innerHTML = '';
+            document.getElementById('map-interface').style.display = 'flex';
+            
+            const tilesData = [
+                { type: 'home', icon: '🏠' }, { type: 'store', icon: '🏪' }, { type: 'school', icon: '🏫' },
+                { type: 'store', icon: '🏪' }, { type: 'park', icon: '🌳' }, { type: 'store', icon: '🏪' },
+                { type: 'school', icon: '🏫' }, { type: 'store', icon: '🏪' }, { type: 'store', icon: '🏪' }
+            ];
+
+            tilesData.forEach((data, i) => {
+                const tile = document.createElement('div');
+                tile.className = 'map-tile';
+                tile.dataset.type = data.type;
+                tile.innerText = data.icon;
+                if(data.type === 'home') tile.style.background = '#ffff00';
+                
+                tile.onclick = () => checkMapSelection(data.type);
+                // 加入滑鼠事件來同步更新 index
+                tile.onmouseenter = () => {
+                    Game.mapCursorIndex = i;
+                    updateMapCursor();
+                };
+                grid.appendChild(tile);
+            });
+            updateMapCursor();
+        }
+
+        function updateMapCursor() {
+            const tiles = document.querySelectorAll('.map-tile');
+            tiles.forEach((tile, i) => {
+                if (i === Game.mapCursorIndex) tile.classList.add('selected');
+                else tile.classList.remove('selected');
+            });
+        }
+
+        function checkMapSelection(type) {
+            if (type === 'park' || type === 'school') { 
+                AudioSys.playSFX('correct');
+                document.getElementById('map-interface').style.display = 'none';
+                Game.state = 'dialogue'; 
+                Game.currentScene = 'c6_map_done';
+                renderScene();
+            } else if (type === 'home') {
+                AudioSys.playSFX('wrong');
+                alert("地震時待在家裡可能會有危險，請尋找開闊地或收容所。");
+            } else {
+                AudioSys.playSFX('wrong');
+                const mapUI = document.getElementById('map-interface');
+                mapUI.style.transform = 'translate(-50%, -50%) rotate(5deg)';
+                setTimeout(() => { mapUI.style.transform = 'translate(-50%, -50%) rotate(0deg)'; }, 100);
+            }
+        }
+
+        /* === 記憶翻牌小遊戲 === */
+        function startMemoryGame() {
+            Game.state = 'memory';
+            document.getElementById('memory-game-overlay').style.display = 'flex';
+            const grid = document.getElementById('memory-grid');
+            grid.innerHTML = '';
+            Game.flippedCards = [];
+            Game.matchedCount = 0;
+
+            const pairs = [
+                { id: 1, text: '規避', icon: '🛡️', type: 'term' }, { id: 1, text: '逃跑', icon: '🏃', type: 'desc' },
+                { id: 2, text: '降低', icon: '🔧', type: 'term' }, { id: 2, text: '滅火器', icon: '🧯', type: 'desc' },
+                { id: 3, text: '自留', icon: '💰', type: 'term' }, { id: 3, text: '小錢', icon: '💵', type: 'desc' },
+                { id: 4, text: '轉移', icon: '⚖️', type: 'term' }, { id: 4, text: '保險', icon: '📝', type: 'desc' }
+            ];
+
+            pairs.sort(() => Math.random() - 0.5);
+
+            pairs.forEach((data, i) => {
+                const card = document.createElement('div');
+                card.className = 'memory-card';
+                card.dataset.id = data.id;
+                card.dataset.index = i;
+                
+                const content = document.createElement('div');
+                content.className = 'memory-text';
+                content.innerHTML = `${data.icon}<br>${data.text}`;
+                card.appendChild(content);
+
+                card.onclick = () => flipMemoryCard(card);
+                grid.appendChild(card);
+                Game.memoryCards.push(card);
+            });
+        }
+
+        function flipMemoryCard(card) {
+            if (card.classList.contains('flipped') || card.classList.contains('matched') || Game.flippedCards.length >= 2) return;
+            
+            AudioSys.playSFX('card_flip');
+            card.classList.add('flipped');
+            Game.flippedCards.push(card);
+
+            if (Game.flippedCards.length === 2) {
+                setTimeout(checkMemoryMatch, 800);
+            }
+        }
+
+        function checkMemoryMatch() {
+            const [c1, c2] = Game.flippedCards;
+            if (c1.dataset.id === c2.dataset.id) {
+                AudioSys.playSFX('correct');
+                c1.classList.add('matched');
+                c2.classList.add('matched');
+                Game.matchedCount++;
+                if (Game.matchedCount === 4) {
+                    setTimeout(() => {
+                        document.getElementById('memory-game-overlay').style.display = 'none';
+                        AudioSys.playSFX('win');
+                        Game.state = 'dialogue'; 
+                        Game.currentScene = 'c3_memory_done';
+                        renderScene();
+                    }, 1000);
+                }
+            } else {
+                AudioSys.playSFX('wrong');
+                c1.classList.remove('flipped');
+                c2.classList.remove('flipped');
+            }
+            Game.flippedCards = [];
+        }
+
+        /* === 機會與命運小遊戲 === */
+        const ChanceEvents = [
+            { type: 'good', text: '🎉 中樂透！\n資產 +$50,000', money: 50000, hp: 0 },
+            { type: 'bad', text: '🤒 腸胃炎\nHP -20\n醫療費 $5,000', money: -5000, hp: -20 },
+            { type: 'good', text: '📈 股票大漲\n資產 +$30,000', money: 30000, hp: 0 },
+            { type: 'bad', text: '🏚️ 漏水修繕\n資產 -$10,000', money: -10000, hp: 0 },
+            { type: 'good', text: '🍎 身體健康\nHP +20', money: 0, hp: 20 },
+            { type: 'bad', text: '💸 錢包遺失\n資產 -$2,000', money: -2000, hp: 0 },
+            { type: 'good', text: '🍕 朋友請客\nHP +10', money: 0, hp: 10 },
+            { type: 'bad', text: '🚓 違規罰單\n資產 -$1,500', money: -1500, hp: 0 }
+        ];
+
+        function triggerChanceGame(returnScene) {
+            Game.returnScene = returnScene;
+            Game.state = 'card';
+            Game.cardCursorIndex = 0;
+            document.getElementById('chance-game-overlay').style.display = 'flex';
+            document.querySelectorAll('.game-card').forEach(c => {
+                c.classList.remove('flipped', 'selected');
+                c.innerText = '';
+                c.style.background = ""; 
+            });
+            updateCardCursor();
+        }
+
+        function updateCardCursor() {
+            document.querySelectorAll('.game-card').forEach((c, i) => {
+                if(i === Game.cardCursorIndex) c.classList.add('selected');
+                else c.classList.remove('selected');
+            });
+        }
+
+        function selectCard(index) {
+            if (document.querySelectorAll('.game-card.flipped').length > 0) return; 
+            
+            AudioSys.playSFX('card_flip');
+            const card = document.getElementById(`card-${index}`);
+            card.classList.add('flipped');
+            
+            const event = ChanceEvents[Math.floor(Math.random() * ChanceEvents.length)];
+            
+            card.innerText = event.text;
+            
+            if (event.type === 'good') {
+                card.style.background = "gold";
+                if(event.money) FX.floatingText(`+$${event.money.toLocaleString()}`, 'gold');
+                if(event.hp) FX.floatingText(`+${event.hp} HP`, 'lime');
+            } else {
+                card.style.background = "#ffaaaa";
+                FX.shake();
+                if(event.money) FX.floatingText(`-$${Math.abs(event.money).toLocaleString()}`, 'red');
+                if(event.hp) FX.floatingText(`${event.hp} HP`, 'red');
+            }
+
+            Game.money += event.money;
+            Game.hp += event.hp;
+            updateUI();
+
+            setTimeout(() => {
+                document.getElementById('chance-game-overlay').style.display = 'none';
+                Game.state = 'dialogue'; 
+                Game.currentScene = Game.returnScene;
+                renderScene();
+            }, 2500);
+        }
+
+        function triggerCongrats() {
+            AudioSys.playSFX('win');
+            document.getElementById('congrats-overlay').style.display = 'flex';
+            setTimeout(() => {
+                document.getElementById('congrats-overlay').style.display = 'none';
+            }, 5000);
+        }
+
+        window.onload = () => { resizeGame(); };
+    </script>
+</body>
+</html>
