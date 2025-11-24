@@ -201,6 +201,13 @@
             z-index: 100; pointer-events: none;
         }
 
+        /* === 通用：鍵盤選中效果 === */
+        .selected-target {
+            outline: 5px solid var(--neon-yellow);
+            box-shadow: 0 0 20px var(--neon-yellow);
+            z-index: 100;
+        }
+
         /* === 風險四象限圖 === */
         #risk-matrix-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -246,7 +253,7 @@
         .memory-card.flipped .memory-text { transform: rotateY(180deg); }
         .memory-card.flipped::before { display: none; }
         .memory-card.matched { background: var(--neon-green); border-color: var(--neon-green); opacity: 0.5; pointer-events: none; }
-        .memory-card:hover { transform: scale(1.05); border-color: var(--neon-cyan); }
+        .memory-card:hover, .memory-card.selected-target { transform: scale(1.05); border-color: var(--neon-cyan); box-shadow: 0 0 15px var(--neon-cyan); z-index: 5; }
         .memory-text { font-size: 1.2rem; text-align: center; line-height: 1.2; padding: 5px; color: #000;}
 
         /* === 實作地圖介面 === */
@@ -317,6 +324,7 @@
         .win-body { padding: 25px; color: #000; font-size: 1.4rem; line-height: 1.6; max-height: 450px; overflow-y: auto; }
         .learning-title { font-size: 1.8rem; color: #000; border-bottom: 4px double #808080; margin-bottom: 20px; padding-bottom: 10px; font-weight: 900; }
         .win-btn { align-self: center; margin-top: 25px; padding: 10px 30px; font-family: inherit; font-size: 1.2rem; background: var(--win-gray); cursor: pointer; border: 2px solid #fff; border-right-color: #404040; border-bottom-color: #404040; box-shadow: 2px 2px 0 #000; }
+        .win-btn:focus, .win-btn:hover { background: #eee; outline: 2px solid #000; }
 
         /* === 廚房危機找碴遊戲 (可視化圖示) === */
         #hazard-game-overlay {
@@ -394,6 +402,18 @@
             font-size: 15rem; color: white; text-shadow: 0 0 20px red;
             font-weight: bold;
         }
+        /* Touch controls for reflex game */
+        #reflex-controls {
+            display: grid; grid-template-columns: 80px 80px 80px; grid-template-rows: 80px 80px;
+            gap: 10px; margin-top: 30px;
+        }
+        .reflex-btn {
+            width: 80px; height: 80px; background: rgba(255,255,255,0.2);
+            border: 2px solid #fff; border-radius: 50%; display: flex;
+            justify-content: center; align-items: center; font-size: 2rem;
+            cursor: pointer; user-select: none;
+        }
+        .reflex-btn:active { background: rgba(255,255,255,0.5); }
 
         /* === 理賠審核遊戲 === */
         #stamper-game-overlay {
@@ -413,6 +433,7 @@
         }
         .stamp-btn.approve { border-color: lime; color: lime; }
         .stamp-btn.reject { border-color: red; color: red; }
+        .stamp-btn:active, .stamp-btn:hover { background: #333; }
 
         /* === 保費密碼鎖介面 === */
         #keypad-overlay {
@@ -486,7 +507,7 @@
         #mascot-container { 
             position: fixed; bottom: 10px; left: 10px; 
             width: 130px; height: 130px; 
-            z-index: 10000; cursor: help; pointer-events: auto; 
+            z-index: 8000; cursor: help; pointer-events: auto; 
             transition: transform 0.2s;
         }
         #mascot-img { 
@@ -554,6 +575,7 @@
                 <div style="position:absolute; top:40px; width:100%; text-align:center; font-size:2.5rem; color:var(--neon-red); text-shadow:3px 3px 0 #000; pointer-events:none; font-weight:bold;">
                     !! 找出 3 個危險源 !!
                 </div>
+                <div style="position:absolute; bottom:20px; width:100%; text-align:center; color:#aaa;">(鍵盤: 方向鍵選取, Enter確認)</div>
             </div>
 
             <!-- 滅火器節奏遊戲 -->
@@ -582,7 +604,7 @@
                     <div class="matrix-cell highlight-transfer"><h3>⚖️ 風險移轉</h3><p>買保險<br>找人扛</p></div>
                 </div>
                 <div style="margin-top: 20px; text-align: center;">
-                    <button class="win-btn" onclick="closeRiskMatrix()">了解，採取行動</button>
+                    <button class="win-btn" onclick="closeRiskMatrix()">了解，採取行動 (Enter)</button>
                 </div>
             </div>
 
@@ -591,12 +613,13 @@
                 <h1 style="color:var(--neon-green); text-shadow: 3px 3px 0 #000;">🧠 風險記憶特訓 🧠</h1>
                 <p style="color: #ccc;">找出配對的風險策略 (翻兩張)</p>
                 <div class="memory-grid" id="memory-grid"></div>
+                <p style="color:#888; margin-top:10px;">(方向鍵選擇, Space/Enter 翻牌)</p>
             </div>
 
             <!-- 牆壁修補遊戲 -->
             <div id="crack-game-overlay">
                 <div style="position:absolute; top:20px; width:100%; text-align:center; font-size:2rem; color:red; font-weight:bold;">
-                    !! 點擊修補 5 個裂縫 !!
+                    !! 點擊/選取修補 5 個裂縫 !!
                 </div>
             </div>
 
@@ -610,8 +633,8 @@
                     <div id="doc-seal" style="border:3px double red; color:red; padding:5px; transform:rotate(-15deg); display:none;">已核章</div>
                 </div>
                 <div>
-                    <button class="stamp-btn approve" onclick="checkDoc(true)">⭕ 通過</button>
-                    <button class="stamp-btn reject" onclick="checkDoc(false)">❌ 退件</button>
+                    <button class="stamp-btn approve" onclick="checkDoc(true)">⭕ 通過 (←)</button>
+                    <button class="stamp-btn reject" onclick="checkDoc(false)">❌ 退件 (→)</button>
                 </div>
                 <p>規則：有「已核章」才能通過</p>
             </div>
@@ -634,13 +657,14 @@
                     <div class="key-btn" onclick="keypadInput(0)">0</div>
                     <div class="key-btn key-enter" onclick="keypadInput('E')">OK</div>
                 </div>
+                <p style="color:#888;">(可使用鍵盤數字鍵與 Enter)</p>
             </div>
 
             <!-- 物資接接樂 -->
             <div id="falling-game-overlay">
                 <div style="color:white; font-size:1.5rem; margin-top:20px; text-align:center;">
                     左右移動接住水(💧)和食物(🍖)，避開石頭(🪨)！<br>
-                    (按 ← → 或 點擊左右)
+                    (按 ← → 或 拖曳/點擊)
                 </div>
                 <div id="catcher-box"></div>
             </div>
@@ -649,15 +673,23 @@
             <div id="map-interface">
                 <div class="map-header">
                     <span>防災地圖 App</span>
-                    <span style="color:yellow">請使用方向鍵選擇正確地點</span>
+                    <span style="color:yellow">請選擇正確地點</span>
                 </div>
                 <div class="map-grid" id="map-grid"></div>
             </div>
 
             <!-- 逃生反應遊戲 -->
             <div id="reflex-game-overlay">
-                <h1 style="color:red">依照指示方向逃生！</h1>
+                <h1 style="color:red; text-shadow:2px 2px 0 #000;">依照指示方向逃生！</h1>
                 <div id="reflex-arrow">?</div>
+                <div id="reflex-controls">
+                    <div></div>
+                    <div class="reflex-btn" onclick="checkReflexInput('ArrowUp')">⬆️</div>
+                    <div></div>
+                    <div class="reflex-btn" onclick="checkReflexInput('ArrowLeft')">⬅️</div>
+                    <div class="reflex-btn" onclick="checkReflexInput('ArrowDown')">⬇️</div>
+                    <div class="reflex-btn" onclick="checkReflexInput('ArrowRight')">➡️</div>
+                </div>
             </div>
 
             <!-- 地震平衡遊戲 -->
@@ -678,6 +710,7 @@
                     </div>
                     <div id="debris-cover" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#444; opacity:1;"></div>
                 </div>
+                <div style="color:#aaa; position:absolute; bottom:50px;">(連點滑鼠 或 狂按空白鍵/Enter)</div>
             </div>
 
             <!-- 機會命運遊戲 -->
@@ -700,7 +733,7 @@
                         <div class="learning-title" id="learn-title">標題</div>
                         <div id="learn-content">內容...</div>
                         <div style="text-align: center;">
-                            <button class="win-btn" id="learning-btn" onclick="closeLearning()">我學會了</button>
+                            <button class="win-btn" id="learning-btn" onclick="closeLearning()">我學會了 (Enter)</button>
                         </div>
                     </div>
                 </div>
@@ -716,10 +749,9 @@
             <div id="ui-layer">
                 <div id="controls-hint">
                     [操作說明]<br>
-                    使用滑鼠/觸控點擊<br>
-                    對話: Enter/空白鍵/→<br>
-                    對話捲動: ↑/↓<br>
-                    地圖: ↑/↓/←/→/Enter
+                    全平台支援<br>
+                    鍵盤: 方向鍵/Space/Enter<br>
+                    滑鼠/觸控: 點擊螢幕
                 </div>
                 <div id="hud-box" style="display:none;">
                     <span style="color:var(--neon-green)">資產: $ <span id="money">500,000</span></span>
@@ -805,8 +837,10 @@
         const Game = {
             state: 'start', money: 500000, hp: 100, currentScene: 'chance_1_start',
             isTyping: false, fullText: '', typingTimer: null, 
-            currentOptions: [], selectedOptionIndex: 0, cardCursorIndex: 0,
-            mapCursorIndex: 0, returnScene: '', insuranceType: 'none',
+            currentOptions: [], selectedOptionIndex: 0, 
+            cardCursorIndex: 0, mapCursorIndex: 0, 
+            hazardCursorIndex: 0, crackCursorIndex: 0, memoryCursorIndex: 0,
+            returnScene: '', insuranceType: 'none',
             // 遊戲狀態變數
             memoryCards: [], flippedCards: [], matchedCount: 0,
             hazardsFound: 0, keypadValue: "", balancePos: 50, balanceVel: 0, debrisHealth: 5,
@@ -842,10 +876,11 @@
                 return;
             }
 
-            // 2. 特殊小遊戲邏輯
-            if (Game.state === 'game_extinguisher') {
+            // 2. 特殊小遊戲邏輯 - 鍵盤支援
+            if (Game.state === 'game_extinguisher' || Game.state === 'game_debris') {
                 if (e.key === ' ' || e.key === 'Enter') {
-                    checkExtinguisherHit(); 
+                    if(Game.state === 'game_extinguisher') checkExtinguisherHit(); 
+                    if(Game.state === 'game_debris') hitDebris();
                 }
                 return;
             }
@@ -864,14 +899,81 @@
             }
 
             if (Game.state === 'game_falling') {
-                if (e.key === 'ArrowLeft') Game.catcherX = Math.max(0, Game.catcherX - 20);
-                if (e.key === 'ArrowRight') Game.catcherX = Math.min(700, Game.catcherX + 20);
+                if (e.key === 'ArrowLeft') Game.catcherX = Math.max(0, Game.catcherX - 25);
+                if (e.key === 'ArrowRight') Game.catcherX = Math.min(700, Game.catcherX + 25);
                 document.getElementById('catcher-box').style.left = Game.catcherX + 'px';
                 return;
             }
 
             if (Game.state === 'game_reflex') {
                 checkReflexInput(e.key);
+                return;
+            }
+
+            if (Game.state === 'game_stamper') {
+                if (e.key === 'ArrowLeft') checkDoc(true);
+                if (e.key === 'ArrowRight') checkDoc(false);
+                return;
+            }
+
+            // 找碴遊戲 - 鍵盤游標
+            if (Game.state === 'game_hazard') {
+                const hazards = Array.from(document.querySelectorAll('.hazard-target')).filter(el => el.style.display !== 'none');
+                if(hazards.length === 0) return;
+                
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    Game.hazardCursorIndex = (Game.hazardCursorIndex + 1) % hazards.length;
+                    AudioSys.playSFX('move');
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    Game.hazardCursorIndex = (Game.hazardCursorIndex - 1 + hazards.length) % hazards.length;
+                    AudioSys.playSFX('move');
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    foundHazard(hazards[Game.hazardCursorIndex]);
+                    Game.hazardCursorIndex = 0;
+                }
+                
+                // Update visuals
+                document.querySelectorAll('.hazard-target').forEach(el => el.classList.remove('selected-target'));
+                if(hazards[Game.hazardCursorIndex]) hazards[Game.hazardCursorIndex].classList.add('selected-target');
+                return;
+            }
+
+            // 修補遊戲 - 鍵盤游標
+            if (Game.state === 'game_crack') {
+                const cracks = document.querySelectorAll('.wall-crack');
+                if(cracks.length === 0) return;
+                
+                if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                    Game.crackCursorIndex = (Game.crackCursorIndex + 1) % cracks.length;
+                    AudioSys.playSFX('move');
+                } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                    Game.crackCursorIndex = (Game.crackCursorIndex - 1 + cracks.length) % cracks.length;
+                    AudioSys.playSFX('move');
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    if(cracks[Game.crackCursorIndex]) cracks[Game.crackCursorIndex].click();
+                }
+
+                document.querySelectorAll('.wall-crack').forEach(el => el.classList.remove('selected-target'));
+                if(cracks[Game.crackCursorIndex]) cracks[Game.crackCursorIndex].classList.add('selected-target');
+                return;
+            }
+
+            // 記憶遊戲 - 鍵盤游標
+            if (Game.state === 'memory') {
+                const cards = document.querySelectorAll('.memory-card');
+                let moved = false;
+                if (e.key === 'ArrowRight') { Game.memoryCursorIndex = Math.min(cards.length-1, Game.memoryCursorIndex + 1); moved = true; }
+                else if (e.key === 'ArrowLeft') { Game.memoryCursorIndex = Math.max(0, Game.memoryCursorIndex - 1); moved = true; }
+                else if (e.key === 'ArrowDown') { Game.memoryCursorIndex = Math.min(cards.length-1, Game.memoryCursorIndex + 4); moved = true; }
+                else if (e.key === 'ArrowUp') { Game.memoryCursorIndex = Math.max(0, Game.memoryCursorIndex - 4); moved = true; }
+                else if (e.key === 'Enter' || e.key === ' ') {
+                    if(cards[Game.memoryCursorIndex]) flipMemoryCard(cards[Game.memoryCursorIndex]);
+                }
+                
+                if(moved) AudioSys.playSFX('move');
+                
+                cards.forEach(el => el.classList.remove('selected-target'));
+                if(cards[Game.memoryCursorIndex]) cards[Game.memoryCursorIndex].classList.add('selected-target');
                 return;
             }
 
@@ -955,7 +1057,7 @@
             },
             c2_risk_hazard_done: {
                 bg: 'bg-kitchen', npc: '秋鯉魚',
-                text: '好眼力！既然發現危險，現在來特訓如何使用滅火器！\n(準備進行節奏按鈕遊戲，看到綠色按空白鍵)',
+                text: '好眼力！既然發現危險，現在來特訓如何使用滅火器！\n(看到綠色區域時按空白鍵/點擊)',
                 action: () => startExtinguisherGame(), next: null
             },
             c2_ext_done: {
@@ -1292,9 +1394,14 @@
         
         // 1. 危險源找碴 (修正版)
         function startHazardGame() {
-            Game.state = 'game_hazard'; Game.hazardsFound = 0;
+            Game.state = 'game_hazard'; Game.hazardsFound = 0; Game.hazardCursorIndex = 0;
             document.getElementById('hazard-game-overlay').style.display = 'block';
-            document.querySelectorAll('.hazard-target').forEach(el => el.style.display = 'flex');
+            document.querySelectorAll('.hazard-target').forEach(el => {
+                el.style.display = 'flex';
+                el.classList.remove('selected-target');
+            });
+            // Initial selection for keyboard
+            document.querySelectorAll('.hazard-target')[0].classList.add('selected-target');
         }
         function foundHazard(el) {
             if(el.style.display === 'none') return;
@@ -1307,7 +1414,7 @@
             }
         }
 
-        // 2. [新] 滅火器節奏遊戲
+        // 2. 滅火器節奏遊戲
         function startExtinguisherGame() {
             Game.state = 'game_extinguisher'; Game.extPos = 0; Game.extDir = 2; Game.extSuccess = 0;
             document.getElementById('extinguisher-game-overlay').style.display = 'flex';
@@ -1345,11 +1452,11 @@
             }
         }
 
-        // 3. [新] 牆壁修補遊戲
+        // 3. 牆壁修補遊戲
         function startCrackGame() {
-            Game.state = 'game_crack'; Game.cracksFixed = 0; Game.crackCount = 0;
+            Game.state = 'game_crack'; Game.cracksFixed = 0; Game.crackCount = 0; Game.crackCursorIndex = 0;
             const overlay = document.getElementById('crack-game-overlay');
-            overlay.innerHTML = '<div style="position:absolute; top:20px; width:100%; text-align:center; font-size:2rem; color:red; font-weight:bold;">!! 點擊修補 5 個裂縫 !!</div>';
+            overlay.innerHTML = '<div style="position:absolute; top:20px; width:100%; text-align:center; font-size:2rem; color:red; font-weight:bold;">!! 點擊/選取修補 5 個裂縫 !!</div>';
             overlay.style.display = 'block';
             
             let spawnInterval = setInterval(() => {
@@ -1363,6 +1470,13 @@
                     crack.onclick = () => {
                         crack.remove(); AudioSys.playSFX('move'); FX.floatingText('修補!', 'lime');
                         Game.cracksFixed++;
+                        // Adjust cursor if element removed
+                        const remaining = document.querySelectorAll('.wall-crack');
+                        if(remaining.length > 0) {
+                            Game.crackCursorIndex = 0;
+                            remaining[0].classList.add('selected-target');
+                        }
+
                         if (Game.cracksFixed >= 5) {
                             setTimeout(() => {
                                 overlay.style.display = 'none';
@@ -1372,11 +1486,16 @@
                     };
                     overlay.appendChild(crack);
                     Game.crackCount++;
+                    
+                    // Auto select first if none selected
+                    if(document.querySelectorAll('.selected-target').length === 0) {
+                        crack.classList.add('selected-target');
+                    }
                 }
             }, 800);
         }
 
-        // 4. [新] 物資接接樂
+        // 4. 物資接接樂
         function startFallingGame() {
             Game.state = 'game_falling'; Game.itemsCaught = 0;
             document.getElementById('falling-game-overlay').style.display = 'block';
@@ -1384,7 +1503,8 @@
             // 觸控控制
             document.getElementById('falling-game-overlay').onpointermove = (e) => {
                 const rect = e.target.getBoundingClientRect();
-                Game.catcherX = e.clientX - rect.left - 50;
+                let x = e.clientX - rect.left - 50; // Center catcher
+                Game.catcherX = Math.max(0, Math.min(700, x));
                 document.getElementById('catcher-box').style.left = Game.catcherX + 'px';
             };
 
@@ -1427,7 +1547,7 @@
             }, 1000);
         }
 
-        // 5. [新] 逃生反應
+        // 5. 逃生反應
         function startReflexGame() {
             Game.state = 'game_reflex'; Game.reflexScore = 0;
             document.getElementById('reflex-game-overlay').style.display = 'flex';
@@ -1455,7 +1575,7 @@
             }
         }
 
-        // 6. [新] 理賠審核
+        // 6. 理賠審核
         function startStamperGame() {
             Game.state = 'game_stamper'; Game.docScore = 0;
             document.getElementById('stamper-game-overlay').style.display = 'flex';
@@ -1509,10 +1629,14 @@
             Game.state = 'game_balance'; Game.balancePos = 50; Game.balanceVel = 0;
             document.getElementById('balance-overlay').style.display = 'flex';
             const overlay = document.getElementById('balance-overlay');
+            
+            // Pointer support
             overlay.onpointerdown = (e) => {
                 const rect = overlay.getBoundingClientRect();
+                // Click left side to push left (balanceVel decreases), right side pushes right
                 if ((e.clientX - rect.left) < rect.width / 2) Game.balanceVel -= 2; else Game.balanceVel += 2;
             };
+
             let duration = 300;
             balanceInterval = setInterval(() => {
                 Game.balanceVel += (Math.random() - 0.5) * 1.5; Game.balancePos += Game.balanceVel; Game.balanceVel *= 0.95;
@@ -1580,7 +1704,7 @@
 
         function startMemoryGame() {
             Game.state = 'memory'; document.getElementById('memory-game-overlay').style.display = 'flex';
-            const grid = document.getElementById('memory-grid'); grid.innerHTML = ''; Game.flippedCards = []; Game.matchedCount = 0;
+            const grid = document.getElementById('memory-grid'); grid.innerHTML = ''; Game.flippedCards = []; Game.matchedCount = 0; Game.memoryCursorIndex = 0;
             const pairs = [ { id: 1, text: '規避', icon: '🛡️' }, { id: 1, text: '逃跑', icon: '🏃' }, { id: 2, text: '降低', icon: '🔧' }, { id: 2, text: '滅火器', icon: '🧯' }, { id: 3, text: '自留', icon: '💰' }, { id: 3, text: '小錢', icon: '💵' }, { id: 4, text: '轉移', icon: '⚖️' }, { id: 4, text: '保險', icon: '📝' } ];
             pairs.sort(() => Math.random() - 0.5);
             pairs.forEach((data, i) => {
@@ -1588,8 +1712,16 @@
                 const content = document.createElement('div'); content.className = 'memory-text'; content.innerHTML = `${data.icon}<br>${data.text}`;
                 card.appendChild(content);
                 card.onclick = () => flipMemoryCard(card);
+                // Mouse hover also updates cursor
+                card.onmouseenter = () => {
+                    Game.memoryCursorIndex = i;
+                    document.querySelectorAll('.memory-card').forEach(c => c.classList.remove('selected-target'));
+                    card.classList.add('selected-target');
+                }
                 grid.appendChild(card);
             });
+            // Init keyboard selection
+            document.querySelectorAll('.memory-card')[0].classList.add('selected-target');
         }
         function flipMemoryCard(card) {
             if (card.classList.contains('flipped') || card.classList.contains('matched') || Game.flippedCards.length >= 2) return;
